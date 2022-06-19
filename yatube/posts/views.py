@@ -7,15 +7,14 @@ from .forms import PostForm, CommentForm
 from django.shortcuts import redirect
 from django.conf import settings
 
+CACHE_UPDATE_FREQUENCY = 20
+
 
 def paginator(posts, request):
     """Формирует страницу с постами"""
     paginator = Paginator(posts, settings.POSTS_PER_PAGE)
     page_number = request.GET.get('page')
     return paginator.get_page(page_number)
-
-
-CACHE_UPDATE_FREQUENCY = 20
 
 
 @cache_page(CACHE_UPDATE_FREQUENCY, key_prefix='index_page')
@@ -132,11 +131,7 @@ def add_comment(request, post_id):
 @login_required
 def follow_index(request):
     """Станица подписок"""
-    follows = request.user.follower.select_related('author').all()
-    authors = []
-    for follow in follows:
-        authors.append(follow.author)
-    post_list = Post.objects.filter(author__in=authors)
+    post_list = Post.objects.filter(author__following__user=request.user)
     page_obj = paginator(post_list, request)
     context = {
         'page_obj': page_obj,
@@ -150,11 +145,10 @@ def profile_follow(request, username):
     """Создание подписки"""
     author = get_object_or_404(User, username=username)
     if author != request.user:
-        if not Follow.objects.filter(user=request.user).filter(author=author):
-            Follow.objects.create(
-                user=request.user,
-                author=author
-            )
+        Follow.objects.get_or_create(
+            user=request.user,
+            author=author
+        )
     return redirect('posts:profile', username=username)
 
 
